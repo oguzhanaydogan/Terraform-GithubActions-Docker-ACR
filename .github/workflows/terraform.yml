@@ -157,12 +157,9 @@ jobs:
         login-server: ${{ secrets.ACR_USERNAME }}.azurecr.io
         username: ${{ secrets.ACR_USERNAME }}
         password: ${{ secrets.AZURE_ACR_PASSWORD }}
-        
-    - name: Build and push
-      uses: docker/build-push-action@v4
-      with:
-        push: true
-        tags: oaydoganacr.azurecr.io/tetris:latest
+    - run: |
+        docker build . -t ${{ secrets.ACR_USERNAME }}.azurecr.io/tetris:${{ github.sha }}
+        docker push ${{ secrets.ACR_USERNAME }}.azurecr.io/tetris:${{ github.sha }}   
         
     - name: 'Login via Azure CLI'
       uses: azure/login@v1
@@ -175,4 +172,4 @@ jobs:
     - uses: azure/webapps-deploy@v2
       with:
         app-name: 'oaydogan-webapp'
-        images: 'oaydoganacr.azurecr.io/tetris:latest'
+        images: 'oaydoganacr.azurecr.io/tetris:${{ github.sha }}'
