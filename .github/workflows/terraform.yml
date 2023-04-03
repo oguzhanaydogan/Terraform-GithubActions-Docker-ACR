@@ -158,8 +158,8 @@ jobs:
         username: ${{ secrets.ACR_USERNAME }}
         password: ${{ secrets.AZURE_ACR_PASSWORD }}
     - run: |
-        docker build . -t ${{ secrets.ACR_USERNAME }}.azurecr.io/tetris:${{ github.sha }}
-        docker push ${{ secrets.ACR_USERNAME }}.azurecr.io/tetris:${{ github.sha }}   
+        docker build . -t oaydoganacr.azurecr.io/tetris:${{ github.sha }}
+        docker push oaydoganacr.azurecr.io/tetris:${{ github.sha }}   
         
     - name: 'Login via Azure CLI'
       uses: azure/login@v1
