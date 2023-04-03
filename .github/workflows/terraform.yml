@@ -157,7 +157,7 @@ jobs:
       with:
         registry: oaydoganacr.azurecr.io
         username: oaydoganacr
-        password: ${{ secrets.AZURE_CLIENT_SECRET }}
+        password: ${{ secrets.AZURE_ACR_PASSWORD }}
         
     - name: Build and push
       uses: docker/build-push-action@v4
@@ -171,7 +171,7 @@ jobs:
         creds: ${{ secrets.AZURE_SERVICE_PRINCIPAL }}
         
     - name: 'Set private registry authentication settings'
-      run: az webapp config container set --name oaydogan-webapp --resource-group test1 --docker-registry-server-user oaydoganacr --docker-registry-server-password ${{ secrets.AZURE_CLIENT_SECRET }}
+      run: az webapp config container set --name oaydogan-webapp --resource-group test1 --docker-registry-server-user oaydoganacr --docker-registry-server-password ${{ secrets.AZURE_ACR_PASSWORD }}
       
     - uses: azure/webapps-deploy@v2
       with:
