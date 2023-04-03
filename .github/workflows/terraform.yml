@@ -152,10 +152,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Login to ACR
-      uses: docker/login-action@v1
+    - uses: azure/docker-login@v1
       with:
-        registry: ${{ secrets.ACR_USERNAME }}.azurecr.io
+        login-server: ${{ secrets.ACR_USERNAME }}.azurecr.io
         username: ${{ secrets.ACR_USERNAME }}
         password: ${{ secrets.AZURE_ACR_PASSWORD }}
         
