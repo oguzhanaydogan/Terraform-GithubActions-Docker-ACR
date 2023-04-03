@@ -4,7 +4,7 @@ provider "azurerm" {
 
 terraform {
   backend "azurerm" {
-    resource_group_name  = "remote-backend"
+    resource_group_name  = "test"
     storage_account_name = "oaydogan"
     container_name       = "terraformstate"
     key                  = "terraform.tfstate"
@@ -40,3 +40,4 @@ resource "azurerm_linux_web_app" "example" {
 
   site_config {}
 }
+
