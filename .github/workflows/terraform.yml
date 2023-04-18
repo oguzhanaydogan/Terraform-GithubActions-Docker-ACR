@@ -20,12 +20,15 @@ env:
   ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
   ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
   ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
 jobs:
   terraform-plan:
     name: 'Terraform Plan'
     runs-on: ubuntu-latest
+    environment: production
     env:
+      working-directory: infrastructure/
       #this is needed since we are running terraform with read-only permissions
       ARM_SKIP_PROVIDER_REGISTRATION: true
     outputs:
@@ -45,16 +48,19 @@ jobs:
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
       run: terraform init
-
+      working-directory: ${{ env.working-directory }}
+            
     # Checks that all Terraform configuration files adhere to a canonical format
     # Will fail the build if not
     - name: Terraform Format
       run: terraform fmt -check
+      working-directory: ${{ env.working-directory }}
 
     # Generates an execution plan for Terraform
     # An exit code of 0 indicated no changes, 1 a terraform failure, 2 there are pending changes.
     - name: Terraform Plan
       id: tf-plan
+      working-directory: ${{ env.working-directory }}
       run: |
         export exitcode=0
         terraform plan -lock=false -detailed-exitcode -no-color -out tfplan || export exitcode=$?
@@ -73,14 +79,13 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: tfplan
-        path: tfplan
-        
+        path: infrastructure/tfplan
     # Create string output of Terraform Plan
     - name: Create String Output
       id: tf-plan-string
+      working-directory: ${{ env.working-directory }}
       run: |
         TERRAFORM_PLAN=$(terraform show -no-color tfplan)
-        
         delimiter="$(openssl rand -hex 8)"
         echo "summary<<${delimiter}" >> $GITHUB_OUTPUT
         echo "## Terraform Plan Output" >> $GITHUB_OUTPUT
@@ -92,11 +97,11 @@ jobs:
         echo "</details>" >> $GITHUB_OUTPUT
         echo "${delimiter}" >> $GITHUB_OUTPUT
         
-    # Publish Terraform Plan as task summary
+    # Publish Terraform Plan as task summary 
     - name: Publish Terraform Plan to Task Summary
       env:
         SUMMARY: ${{ steps.tf-plan-string.outputs.summary }}
-      run: |
+      run: 
         echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
       
     # If this is a PR post the changes
@@ -118,10 +123,12 @@ jobs:
                 
   terraform-apply:
     name: 'Terraform Apply'
-#     if: github.ref == 'refs/heads/main' && needs.terraform-plan.outputs.tfplanExitCode == 2
+    if: github.ref == 'refs/heads/main' && needs.terraform-plan.outputs.tfplanExitCode == 2
     runs-on: ubuntu-latest
     environment: production
     needs: [terraform-plan]
+    env: 
+      working-directory: infrastructure/
     
     steps:
     # Checkout the repository to the GitHub Actions runner
@@ -134,6 +141,7 @@ jobs:
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
+      working-directory: ${{ env.working-directory }}
       run: terraform init
 
     # Download saved plan from artifacts  
@@ -141,35 +149,50 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: tfplan
+        path: infrastructure/
 
     # Terraform Apply
     - name: Terraform Apply
       run: terraform apply -auto-approve tfplan
-
-  build-and-deploy:
+      working-directory: ${{ env.working-directory }}
+    
+  docker-build-and-deploy:
     runs-on: ubuntu-latest
+    environment: production
     needs: [terraform-apply]
+    env: 
+      working-directory: infrastructure/
     steps:
+    
     - uses: actions/checkout@v3
     
     - uses: azure/docker-login@v1
+      id: dockerlogin
       with:
-        login-server: ${{ secrets.ACR_USERNAME }}.azurecr.io
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.AZURE_ACR_PASSWORD }}
-    - run: |
-        docker build . -t oaydoganacr.azurecr.io/tetris:${{ github.sha }}
-        docker push oaydoganacr.azurecr.io/tetris:${{ github.sha }}   
-        
+        login-server: ${{ vars.ACR_USERNAME }}.azurecr.io
+        username: ${{ vars.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+          push: true
+          tags: ${{ vars.ACR_USERNAME }}.azurecr.io/tetris:${{ github.sha }}
+          
     - name: 'Login via Azure CLI'
       uses: azure/login@v1
       with:
-        creds: ${{ secrets.AZURE_SERVICE_PRINCIPAL }}
+        creds: ${{ secrets.AZURE_SERVICE_PRINCIPAL }} 
+        
+    - name: Sleep for 10 minutes
+      run: sleep 10m
+      shell: bash
         
     - name: 'Set private registry authentication settings'
-      run: az webapp config container set --name oaydogan-webapp --resource-group test1 --docker-registry-server-user oaydoganacr --docker-registry-server-password ${{ secrets.AZURE_ACR_PASSWORD }}
+      run: az webapp config container set --name ${{ vars.WEBAPP }} --resource-group ${{ vars.RESOURCEGROUP }} --docker-registry-server-user ${{ vars.ACR_USERNAME }} --docker-registry-server-password ${{ secrets.ACR_PASSWORD }}
       
     - uses: azure/webapps-deploy@v2
       with:
-        app-name: 'oaydogan-webapp'
-        images: 'oaydoganacr.azurecr.io/tetris:${{ github.sha }}'
+        app-name: '${{ vars.WEBAPP }}'
+        images: '${{ vars.ACR_USERNAME }}.azurecr.io/tetris:${{ github.sha }}'
+      
