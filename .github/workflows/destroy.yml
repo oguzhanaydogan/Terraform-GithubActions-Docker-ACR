@@ -1,0 +1,40 @@
+name: Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Confirm infrastructure destruction'
+        required: true
+        type: choice
+        options:
+        - 'No'
+        - 'Yes'
+        default: 'No'
+
+env:
+  ARM_CLIENT_ID: "${{ secrets.AZURE_CLIENT_ID }}"
+  ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+  ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
+  ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      working-directory: infrastructure/
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Configure Terraform
+        uses: hashicorp/setup-terraform@v2
+        
+      - name: Destroy infrastructure
+        working-directory: ${{ env.working-directory }}
+        if: github.event.inputs.confirm == 'Yes'
+        run: |
+          terraform init
+          terraform destroy -auto-approve
